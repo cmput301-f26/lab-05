@@ -1,25 +1,58 @@
 package com.example.listycity
 
 import androidx.compose.runtime.mutableStateListOf
+import com.google.firebase.Firebase
+import com.google.firebase.firestore.firestore
 
 class CityRepository {
+    private val db = Firebase.firestore
+    private val citiesRef = db.collection("cities")
     private val _cities = mutableStateListOf(
         City("Edmonton", "AB"),
         City("Vancouver", "BC"),
         City("Toronto", "ON")
     )
 
+    init {
+        //watch cities collection (citiesRef),
+        //updates _cities whenever Firestone changes
+        citiesRef.addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                return@addSnapshotListener
+            }
+
+            //update block, wipe list -> rewrite all elements
+            _cities.clear()
+            snapshot?.documents?.forEach { document ->
+                val city = document.toObject(City::class.java)
+                if (city != null){
+                    _cities.add(city)
+                }
+
+            }
+        }
+    }
+
     val cities: List<City>
         get() = _cities
 
     fun addCity(city: City) {
-        _cities.add(city)
+        //call snapshot listener to add to db
+        citiesRef.document(city.name).set(city)
+    }
+
+    fun deleteCity(city: City){
+        citiesRef.document(city.name).delete()
     }
 
     fun updateCity(oldCity: City, updatedCity: City) {
-        val index = _cities.indexOf(oldCity)
-        if (index != -1) {
-            _cities[index] = updatedCity
+        if (oldCity.name != updatedCity.name) {
+            // Delete document under the old name so we don't leave orphaned documents
+            citiesRef.document(oldCity.name).delete()
         }
+        // Save updated city under the new city name
+        citiesRef.document(updatedCity.name).set(updatedCity)
     }
+
+
 }
